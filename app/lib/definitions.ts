@@ -16,6 +16,7 @@ export type Customer = {
   image_url: string;
 };
 
+//to validate and prepare the data
 export type Invoice = {
   id: string;
   customer_id: string;
