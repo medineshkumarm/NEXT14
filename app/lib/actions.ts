@@ -1,53 +1,17 @@
 'use server';
-/**
- * 
-Tip: If you're working with forms that have many fields, 
-you may want to consider using the entries() method with
- JavaScript's Object.fromEntries().
-For example:
-const rawFormData = Object.fromEntries(formData.entries())
- */
-import { z } from 'zod'; //TypeScript-first validation library
+
+import { z } from 'zod';
 import { sql } from '@vercel/postgres';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-
-
-
-// import { signIn } from '@/auth';
-// import { AuthError } from 'next-auth';
- 
-// // ...
- 
-// export async function authenticate(
-//   prevState: string | undefined,
-//   formData: FormData,
-// ) {
-//   try {
-//     await signIn('credentials', formData);
-//   } catch (error) {
-//     if (error instanceof AuthError) {
-//       switch (error.type) {
-//         case 'CredentialsSignin':
-//           return 'Invalid credentials.';
-//         default:
-//           return 'Something went wrong.';
-//       }
-//     }
-//     throw error;
-//   }
-// }
-
-
-
+import { signIn } from '@/auth';
+import { AuthError } from 'next-auth';
 
 const FormSchema = z.object({
   id: z.string(),
   customerId: z.string({
     invalid_type_error: 'Please select a customer.',
   }),
-  //The amount field is specifically set to coerce (change)
-  //from a string to a number while also validating its type.
   amount: z.coerce
     .number()
     .gt(0, { message: 'Please enter an amount greater than $0.' }),
@@ -58,7 +22,9 @@ const FormSchema = z.object({
 });
 
 const CreateInvoice = FormSchema.omit({ id: true, date: true });
-// This is temporary until @types/react-dom is updated
+const UpdateInvoice = FormSchema.omit({ date: true, id: true });
+
+// This is temporary
 export type State = {
   errors?: {
     customerId?: string[];
@@ -67,8 +33,9 @@ export type State = {
   };
   message?: string | null;
 };
+
 export async function createInvoice(prevState: State, formData: FormData) {
-  // Validate form using Zod
+  // Validate form fields using Zod
   const validatedFields = CreateInvoice.safeParse({
     customerId: formData.get('customerId'),
     amount: formData.get('amount'),
@@ -105,25 +72,12 @@ export async function createInvoice(prevState: State, formData: FormData) {
   revalidatePath('/dashboard/invoices');
   redirect('/dashboard/invoices');
 }
-// export async function createInvoice(formData: FormData){
-
-//     const rawFormData = {
-//         customerId : formData.get('customerId'),
-//         amount: formData.get('amount'),
-//         status: formData.get('status'),
-//     };
-//     console.log(rawFormData);
-//     console.log(typeof rawFormData.amount);
-// }
-
-const UpdateInvoice = FormSchema.omit({ id: true, date: true });
 
 export async function updateInvoice(
   id: string,
   prevState: State,
   formData: FormData,
 ) {
-  //validation part
   const validatedFields = UpdateInvoice.safeParse({
     customerId: formData.get('customerId'),
     amount: formData.get('amount'),
@@ -137,12 +91,7 @@ export async function updateInvoice(
     };
   }
 
-  const { customerId, amount, status } = UpdateInvoice.parse({
-    customerId: formData.get('customerId'),
-    amount: formData.get('amount'),
-    status: formData.get('status'),
-  });
-
+  const { customerId, amount, status } = validatedFields.data;
   const amountInCents = amount * 100;
 
   try {
@@ -152,24 +101,40 @@ export async function updateInvoice(
       WHERE id = ${id}
     `;
   } catch (error) {
-    return {
-      message: 'Database Error: Failed to Update Invoice.',
-    };
+    return { message: 'Database Error: Failed to Update Invoice.' };
   }
 
   revalidatePath('/dashboard/invoices');
   redirect('/dashboard/invoices');
 }
 
-//   delete the invoices:
 export async function deleteInvoice(id: string) {
   // throw new Error('Failed to Delete Invoice');
+
   try {
     await sql`DELETE FROM invoices WHERE id = ${id}`;
     revalidatePath('/dashboard/invoices');
-    return { message: 'Deleted Invoice.' };
+    return { message: 'Deleted Invoice' };
   } catch (error) {
     return { message: 'Database Error: Failed to Delete Invoice.' };
   }
 }
 
+export async function authenticate(
+  prevState: string | undefined,
+  formData: FormData,
+) {
+  try {
+    await signIn('credentials', formData);
+  } catch (error) {
+    if (error instanceof AuthError) {
+      switch (error.type) {
+        case 'CredentialsSignin':
+          return 'Invalid credentials.';
+        default:
+          return 'Something went wrong.';
+      }
+    }
+    throw error;
+  }
+}
